@@ -1,4 +1,4 @@
-# 🚀 Project Name
+# 🚀 STARS AI
 
 ## 📌 Table of Contents
 - [Introduction](#introduction)
