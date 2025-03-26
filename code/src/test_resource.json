@@ -1,0 +1,647 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Building a RAG to predit risk score of a transaction "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Initiating model using groq inference server"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import getpass\n",
+    "import os\n",
+    "\n",
+    "if not os.environ.get(\"GROQ_API_KEY\"):\n",
+    "  os.environ[\"GROQ_API_KEY\"] = getpass.getpass(\"Enter API key for Groq: \")\n",
+    "\n",
+    "os.environ[\"NEO4J_URI\"] = \"bolt://localhost:7687\"\n",
+    "os.environ[\"NEO4J_USERNAME\"] = \"neo4j\"\n",
+    "os.environ[\"NEO4J_PASSWORD\"] = \"Anish@hack1\"\n",
+    "\n",
+    "\n",
+    "from langchain.chat_models import init_chat_model\n",
+    "\n",
+    "model = init_chat_model(\"deepseek-r1-distill-qwen-32b\", model_provider=\"groq\")\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Simple prompt with SystemMessage and HumanMessage"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "content='<think>\\nAlright, so I need to figure out how to extract information from a transaction. Let me start by looking at the given example to understand what\\'s expected. The user provided a transaction with various fields like Transaction ID, Date, Payer, etc., and the assistant broke it down into categories: Transaction ID, Date, Payer, Payee, Amount, Payment Method, Purpose, Status, Location, and any additional notes.\\n\\nOkay, so if I were to approach this, I should first identify all the possible fields that a transaction might have. From the example, it looks like the main fields are ID, Date, Payer, Payee, Amount, Method, Purpose, and Status. But there might be more, like account numbers, banks involved, locations, etc.\\n\\nI should think about each part of the transaction. Let\\'s take the given example. The transaction ID is TXN20250322113045. That\\'s straightforward. The date is 2025-03-22T11:30:45Z, which includes the date and time in a specific format. Payer is Tesla, Inc., and their account number and bank. Similarly, the payee is Adani Green Energy Ltd., with their account details and bank.\\n\\nThe amount is 500,000,000 USD, so that\\'s the value. The payment method is Wire Transfer, which indicates how the transaction was made. The purpose is Investment in Renewable Energy Collaboration, which gives context about why the transaction happened. The status is Completed, showing the transaction\\'s current state.\\n\\nAdditionally, the assistant noted the locations of the banks involved, which adds geographical context. They also mentioned the transaction involves a cross-border wire transfer, which is an important detail.\\n\\nSo, when extracting information, I should consider:\\n\\n1. **Identifying the transaction ID**: This is usually a unique identifier for the transaction.\\n2. **Extracting the date and time**: This is crucial for tracking when the transaction occurred.\\n3. **Determining the payer and payee**: These are the entities involved in the transaction.\\n4. **Noting account numbers and banks**: This provides details about how the funds were transferred.\\n5. **Identifying the amount and currency**: This tells us the value of the transaction.\\n6. **Understanding the payment method**: This explains how the transaction was processed.\\n7. **Clarifying the purpose**: This gives context about why the transaction took place.\\n8. **Checking the status**: This indicates if the transaction was successful, pending, etc.\\n9. **Locating the geographical aspects**: This can involve the locations of the banks or entities.\\n10. **Highlighting additional notes**: Any extra information that adds context, like cross-border transfers.\\n\\nI should also consider edge cases. For instance, what if a transaction doesn\\'t have a specified purpose? Or if the payer and payee are in the same country? Maybe the payment method isn\\'t specified, or the status is pending. It\\'s important to handle all possible scenarios.\\n\\nAnother thought is about the structure of the data. In the example, the data was presented in a structured format with labels like \"Payer,\" \"Payee,\" etc. But in some cases, the data might be unstructured or presented differently. So, the extraction process might need to parse through the text to identify these fields.\\n\\nI should also think about validation. After extracting the data, it\\'s good practice to validate it. For example, checking if the transaction ID follows a certain format, ensuring that the date is in a correct format, and verifying that the account numbers are valid for the respective banks.\\n\\nIn terms of presentation, once the data is extracted, organizing it into clear categories makes it easier to understand. Using bullet points or tables could help in presenting the information clearly.\\n\\nLet me try to outline the steps I would take:\\n\\n1. **Read the transaction data carefully**: Look for all the details provided.\\n2. **Identify each field**: Extract the transaction ID, date, payer, payee, etc.\\n3. **Extract additional details**: Look for account numbers, banks, location, purpose, and status.\\n4. **Note any additional information**: Such as cross-border transfers, which adds context.\\n5. **Organize the extracted information**: Present it in a structured manner for clarity.\\n\\nI should also consider the possibility of missing information. For example, a transaction might not specify the purpose or the location. In such cases, it\\'s important to note that the information is unavailable or not provided.\\n\\nAdditionally, I should think about data formatting. For instance, the amount is given as 500,000,000 USD. It might be useful to format it as $500,000,000 for clarity. Similarly, the date is in ISO 8601 format, which is good for standardization.\\n\\nI wonder if there are any other fields that might be relevant. Maybe the transaction reference number, or the intermediary banks involved in a wire transfer. These could add more depth to the information extracted.\\n\\nAlso, considering the purpose of the transaction, it\\'s important to note if it\\'s for goods, services, investment, etc. This context can be vital for understanding the nature of the transaction.\\n\\nIn summary, extracting information from a transaction involves identifying and categorizing each piece of data, ensuring accuracy, and presenting it in a clear and organized manner. It\\'s also essential to consider any additional context or notes that might provide deeper insights into the transaction.\\n</think>\\n\\n**Transaction Information Extraction and Analysis**\\n\\nThe following structured breakdown organizes the extracted information from the given transaction, incorporating all relevant details and additional considerations:\\n\\n---\\n\\n**1. Transaction ID**\\n- TXN20250322113045\\n\\n**2. Date and Time**\\n- 2025-03-22T11:30:45Z (ISO 8601 format)\\n\\n**3. Payer Details**\\n- **Name**: Tesla, Inc.\\n- **Account Number**: TESLA987654321\\n- **Bank**: JPMorgan Chase Bank, USA\\n\\n**4. Payee Details**\\n- **Name**: Adani Green Energy Ltd.\\n- **Account Number**: ADANIGREEN123456\\n- **Bank**: State Bank of India, India\\n\\n**5. Transaction Amount**\\n- $500,000,000 USD\\n\\n**6. Payment Method**\\n- Wire Transfer\\n\\n**7. Purpose**\\n- Investment in Renewable Energy Collaboration\\n\\n**8. Status**\\n- Completed\\n\\n**9. Geographical Context**\\n- **Payer\\'s Bank Location**: USA\\n- **Payee\\'s Bank Location**: India\\n- **Note**: Cross-border transaction\\n\\n**10. Additional Notes**\\n- The transaction involves a significant investment in renewable energy, indicating a strategic partnership.\\n- The use of wire transfer suggests an international transaction, given the involvement of banks in different countries.\\n\\n---\\n\\nThis structured approach ensures clarity and comprehensiveness, providing a detailed overview of the transaction\\'s components and context.' additional_kwargs={} response_metadata={'token_usage': {'completion_tokens': 1478, 'prompt_tokens': 194, 'total_tokens': 1672, 'completion_time': 10.557142857, 'prompt_time': 0.052909847, 'queue_time': 0.11754220899999998, 'total_time': 10.610052704}, 'model_name': 'deepseek-r1-distill-qwen-32b', 'system_fingerprint': 'fp_d458a8aba5', 'finish_reason': 'stop', 'logprobs': None} id='run-e1ca5d14-75ee-479e-b8a9-371ba6803d06-0' usage_metadata={'input_tokens': 194, 'output_tokens': 1478, 'total_tokens': 1672}\n"
+     ]
+    }
+   ],
+   "source": [
+    "from langchain_core.messages import HumanMessage, SystemMessage\n",
+    "\n",
+    "transaction = input('Enter transaction: ')\n",
+    "\n",
+    "# messages = [\n",
+    "#     SystemMessage(\"You are an assitant that helps data analysts in a financial institution to risk score a transaction among entities/corporations. It can also include individuals. Given an input transaction, you need to predict the risk score (0 to 1) of the transaction, confidence score (0 to 1) and a reason for the risk score.\"),\n",
+    "#     HumanMessage(transaction),\n",
+    "# ]\n",
+    "## Update this with structured output? To get a JSON output??\n",
+    "messages = [\n",
+    "    SystemMessage(\"Given an input transaction, extract the entities involved, the value of the transaction, the date of the transaction, the type of transaction, the location and any other information that you think is relevant.\"),\n",
+    "    HumanMessage(transaction),\n",
+    "]\n",
+    "output = model.invoke(messages)\n",
+    "print(output)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {},
+   "outputs": [
+    {
+     "ename": "TypeError",
+     "evalue": "RunnableSequence.invoke() missing 1 required positional argument: 'input'",
+     "output_type": "error",
+     "traceback": [
+      "\u001b[31m---------------------------------------------------------------------------\u001b[39m",
+      "\u001b[31mTypeError\u001b[39m                                 Traceback (most recent call last)",
+      "\u001b[36mCell\u001b[39m\u001b[36m \u001b[39m\u001b[32mIn[17]\u001b[39m\u001b[32m, line 28\u001b[39m\n\u001b[32m     16\u001b[39m chain = (\n\u001b[32m     17\u001b[39m     {\u001b[33m\"\u001b[39m\u001b[33moutput\u001b[39m\u001b[33m\"\u001b[39m: RunnablePassthrough()}\n\u001b[32m     18\u001b[39m     | prompt\n\u001b[32m     19\u001b[39m     | model\n\u001b[32m     20\u001b[39m     | StrOutputParser()\n\u001b[32m     21\u001b[39m )\n\u001b[32m     22\u001b[39m \u001b[38;5;66;03m# chain = (\u001b[39;00m\n\u001b[32m     23\u001b[39m \u001b[38;5;66;03m#     {\"context\": retriever, \"transaction\": RunnablePassthrough()},\u001b[39;00m\n\u001b[32m     24\u001b[39m \u001b[38;5;66;03m#     | prompt\u001b[39;00m\n\u001b[32m     25\u001b[39m \u001b[38;5;66;03m#     | model\u001b[39;00m\n\u001b[32m     26\u001b[39m \u001b[38;5;66;03m#     | StrOutputParser()\u001b[39;00m\n\u001b[32m     27\u001b[39m \u001b[38;5;66;03m# )\u001b[39;00m\n\u001b[32m---> \u001b[39m\u001b[32m28\u001b[39m \u001b[43mchain\u001b[49m\u001b[43m.\u001b[49m\u001b[43minvoke\u001b[49m\u001b[43m(\u001b[49m\u001b[43m)\u001b[49m\n",
+      "\u001b[31mTypeError\u001b[39m: RunnableSequence.invoke() missing 1 required positional argument: 'input'"
+     ]
+    }
+   ],
+   "source": [
+    "from langchain_core.output_parsers import StrOutputParser\n",
+    "from langchain_core.prompts import ChatPromptTemplate\n",
+    "from langchain_core.runnables import RunnablePassthrough\n",
+    "\n",
+    "prompt = ChatPromptTemplate.from_template(\n",
+    "    \"\"\"\n",
+    "    You are an agent whose output is the input for a GraphCyperChainQA that generates a query, queries and gives a output from a GraphDB. The database has relationships among different entities (companies, officers). Using the context generate human readable text that when given as an input to the subsequent chain the chain should generate good and useful responses. Use the context if needed.\n",
+    "    Context: {context}\n",
+    "    \"\"\"\n",
+    ")\n",
+    "\n",
+    "\n",
+    "def format_docs(docs):\n",
+    "    return \"\\n\\n\".join(doc.page_content for doc in docs)\n",
+    "\n",
+    "chain = (\n",
+    "    {\"output\": RunnablePassthrough()}\n",
+    "    | prompt\n",
+    "    | model\n",
+    "    | StrOutputParser()\n",
+    ")\n",
+    "# chain = (\n",
+    "#     {\"context\": retriever, \"transaction\": RunnablePassthrough()},\n",
+    "#     | prompt\n",
+    "#     | model\n",
+    "#     | StrOutputParser()\n",
+    "# )\n",
+    "chain.invoke()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Creating a Chain with prompt (chatprompttemplate) and context (wikipedia retriever) and model "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Wikipedia Retriever "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 46,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from langchain_community.retrievers import WikipediaRetriever\n",
+    "\n",
+    "# documentloader \n",
+    "retriever = WikipediaRetriever()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 48,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "page_content='Adani Green Energy Limited (AGEL) is an Indian renewable energy company, headquartered in Ahmedabad, India. It is majority-owned by Indian conglomerate Adani Group and minority-owned by TotalEnergies. The company operates Kamuthi Solar Power Project, one of the largest solar photovoltaic plants in the world.\n",
+      "\n",
+      "\n",
+      "== History ==\n",
+      "The company was incorporated on 23 January 2016, as Adani Green Energy Limited under the Companies Act 2013.\n",
+      "During the initial days of existence, AGEL and Inox Wind together established a 20 MW capacity wind power project in Lahori, Madhya Pradesh. Also, AGEL bought Inox Wind's 50 MW wind power project at Dayapar village in Kutch. The project was conceived by the latter when it won a Solar Energy Corporation of India's capacity bids for wind power projects connected to the National Grid.\n",
+      "In 2015–2016, Adani Renewable Energy Park Limited, a subsidiary of AGEL, signed a joint venture agreement with the Government of Rajasthan.\n",
+      "In 2017, the company took the complete control of overall solar energy portfolio of Adani Enterprises and got itself listed at National Stock Exchange of India and Bombay Stock Exchange.\n",
+      "In 2022, Adani Green Energy Limited had a market cap of Rs. 3,26,635.42 crore.\n",
+      "\n",
+      "\n",
+      "== Operations ==\n",
+      "Currently, the company manages 5,290 MW of wind energy and solar power plants including 46 operational projects in 11 states of India namely Uttar Pradesh, Rajasthan, Punjab, Maharashtra, Gujarat, Madhya Pradesh, Chhattisgarh, Andhra Pradesh, Karnataka, Tamil Nadu, and Telangana. AGEL has a current project portfolio of ~5.29 GW and an operational capacity of ~2.36 GW.\n",
+      "As of 31 March 2019, AGEL has one joint venture and 39 subsidiaries.\n",
+      "In May 2020, AGEL won the world's largest solar bid worth $6 billion by the Solar Energy Corporation of India (SECI). The bid entails AGEL building an 8000 MW photovoltaic power plant.\n",
+      "In May 2021, AGEL confirmed its decision to buy SoftBank Group Corp backed SB Energy Holdings Limited for $3.5 billion.\n",
+      "According to media reports, The Khavda renewable energy plant was initiated in December 2022, and its first production occurred on December 31, 2023.The plant covers an area of 538 square kilometers. The hybrid renewable energy cluster generates solar energy during the day and wind energy in the evening, with an operational capacity of 2,000 MW of solar energy.\n",
+      "\n",
+      "\n",
+      "== Green bonds ==\n",
+      "In late 2019, AGEL became the first Indian company to offer investment-grade US dollar green bonds worth US$362.5 million to foreign investors. The bonds got listed on Singapore Exchange Securities Trading Limited (SGX- ST) on 15 October 2019 and it will mature on the same date in 2039.\n",
+      "\n",
+      "\n",
+      "== Acquisitions ==\n",
+      "In March 2018, upon acquisition of 49 percent equity shares of Kodangal Solar Parks Private Limited, the latter became a joint venture of AGEL. In 2019, AGEL acquired the rest 51 percent equity share as well.\n",
+      "In mid-2019, AGEL acquired Essel Group's solar power portfolio of 205MW located in Punjab, Karnataka and Uttar Pradesh  for US$185 million (approx. ₹1,300 crores). AGEL has also agreed to buy out the remaining 480MW solar energy portfolio of the former which are under construction.\n",
+      "In early 2020, French energy company Total (now TotalEnergies) entered into a binding agreement with AGEL for the investment of US$510 million to acquire a 20% stake in the latter.\n",
+      "In May 2021, AGEL acquired SoftBank Group Corp backed SB Energy Holdings Limited for $3.5 billion.\n",
+      "\n",
+      "\n",
+      "== Controversies ==\n",
+      "\n",
+      "\n",
+      "=== Rajasthan Solar Park ===\n",
+      "Local farmers have opposed to construction of 1.5GW solar park at Pokhran after which High Court of Rajasthan has ordered status quo.\n",
+      "\n",
+      "\n",
+      "=== Allegations of stock manipulation ===\n",
+      "In January 2023, Hindenburg Research published the findings of a two-year investigation claiming that Adani had engaged in market manipulation and accounting malpractices; Hindenburg also disclosed that it was holding short positions on Adani Group companies. Bonds and shares of companies associated with Adani ex' metadata={'title': 'Adani Green Energy', 'summary': 'Adani Green Energy Limited (AGEL) is an Indian renewable energy company, headquartered in Ahmedabad, India. It is majority-owned by Indian conglomerate Adani Group and minority-owned by TotalEnergies. The company operates Kamuthi Solar Power Project, one of the largest solar photovoltaic plants in the world.', 'source': 'https://en.wikipedia.org/wiki/Adani_Green_Energy'}\n",
+      "===\n",
+      "page_content='Adani Group (Hindi: [əd̪aːniː], Gujarati: [əd̪aɳiː]) is an Indian multinational conglomerate, headquartered in Ahmedabad. Founded by Gautam Adani in 1988 as a commodity trading business, the Group's businesses include sea and airport management, electricity generation and transmission, mining, natural gas, food, weapons, and infrastructure. It is particularly active in metal commodity exchange. More than 60% of its revenue is derived from coal-related businesses.\n",
+      "Noted for its close association with the ruling Bharatiya Janata Party, Adani was the largest Indian conglomerate as of 2022 with a US$206 billion market capitalization, surpassing Tata Group. It lost more than $104 billion in value after fraud and market manipulation allegations by short-seller firm Hindenburg Research. In May 2024, the Adani Group's market capitalization returned to over $200 billion after the Supreme Court directed the Securities and Exchange Board of India (SEBI) to expedite its investigation.\n",
+      "The Adani Group has also attracted other controversies due to reports suggesting stock manipulation, accounting irregularities, exporting military drones to Israel for its war in Gaza, political corruption, cronyism, tax evasion, environmental damage, and suing journalists.\n",
+      "\n",
+      "\n",
+      "== History ==\n",
+      "Adani Exports Limited started as a commodity trading company in 1988 and expanded into importing and exporting multiple commodities. With a capital of ₹5 lakhs, the company was established as a partnership firm with the flagship company Adani Enterprises, previously Adani Exports.\n",
+      "In 1990, the Adani Group developed its own port in Mundra to provide a base for its trading operations. It began construction at Mundra in 1995. In 1998, it became the top net foreign exchange earner for India Inc. The company began coal trading in 1999, followed by a joint venture in edible oil refining in 2000 with the formation of Adani Wilmar.\n",
+      "Adani handled 4 Mt of cargo at Mundra in 2002, becoming the largest private port in India. Later in 2006, the company became the largest coal importer in India with 11 Mt of coal handling.\n",
+      "The company expanded its business in 2008, purchasing Bunyu Mine in Indonesia which has 180 Mt of coal reserves. In 2009 the firm began generating 330 MW of thermal power. It also built an edible oil refining capacity in India of 2.2 Mt per annum.\n",
+      "In 2010, Adani group with help of Petronet LNG will set up a solid cargo port through a Joint Venture company namely Adani Petronet (Dahej) Port Private Ltd., has already commenced its Phase 1 operations from August 2010 at Dahej Port. solid cargo port terminal would have facilities to import/export bulk products like coal, steel and fertilizer. PLL has 26% equity in this JV.\n",
+      "The Adani group became India's largest private coal mining company after Adani Enterprises won the Orissa mine rights in 2010. Operations at the Port of Dahej commenced in 2011 and its capacity subsequently grew to 20 Mt. The company also bought Galilee Basin mine in Australia with 10.4 gigatonnes (Gt) of coal reserves. More than 60 percent of the Adani Group's revenue is derived from coal-related businesses.\n",
+      "In 2011, the Adani group also bought Abbot Point port in Australia with 50 Mt of handling capacity. It commissioned India's largest solar power plant with a capacity 40 MW. As the firm achieved 3,960 MW capacity, it became the largest private sector thermal power producer in India. In 2012 The company shifted its focus on three business clusters – resources, logistics and energy.\n",
+      "Adani Power emerged as India's largest private power producer in 2014. Adani Power's total installed capacity then stood at 9,280 MW. On 16 May of the same year, Adani Ports acquired Dhamra Port on East coast of India for ₹5,500 crore (equivalent to ₹88 billion or US$1.0 billion in 2023). Dhamra Port was a 50:50 joint venture between Tata Steel and L&T Infrastructure Development Projects, which has been acquired by Adani Ports. The port began operations in May 2011 and han' metadata={'title': 'Adani Group', 'summary': \"Adani Group (Hindi: [əd̪aːniː], Gujarati: [əd̪aɳiː]) is an Indian multinational conglomerate, headquartered in Ahmedabad. Founded by Gautam Adani in 1988 as a commodity trading business, the Group's businesses include sea and airport management, electricity generation and transmission, mining, natural gas, food, weapons, and infrastructure. It is particularly active in metal commodity exchange. More than 60% of its revenue is derived from coal-related businesses.\\nNoted for its close association with the ruling Bharatiya Janata Party, Adani was the largest Indian conglomerate as of 2022 with a US$206 billion market capitalization, surpassing Tata Group. It lost more than $104 billion in value after fraud and market manipulation allegations by short-seller firm Hindenburg Research. In May 2024, the Adani Group's market capitalization returned to over $200 billion after the Supreme Court directed the Securities and Exchange Board of India (SEBI) to expedite its investigation.\\nThe Adani Group has also attracted other controversies due to reports suggesting stock manipulation, accounting irregularities, exporting military drones to Israel for its war in Gaza, political corruption, cronyism, tax evasion, environmental damage, and suing journalists.\\n\\n\", 'source': 'https://en.wikipedia.org/wiki/Adani_Group'}\n",
+      "===\n",
+      "page_content='Vinod Shantilal Adani (born 1949), also known as Vinod Shantilal Shah, is an Indian-born Cypriot billionaire businessman who runs a family investment office in Dubai. He is the owner of Excel Investment and Advisory Services.\n",
+      "As of 2025, he has a net worth of $16.4 billion.\n",
+      "\n",
+      "\n",
+      "== Personal life ==\n",
+      "Vinod was born in 1949 in Gujarat, India into Adani family who was involved in commodity trading. He is the older brother of the Indian billionaire Gautam Adani. He is married to Ranjanben Vinod Adani and has been a resident of Dubai since 1994 and is a citizen of Cyprus.\n",
+      "\n",
+      "\n",
+      "== Career ==\n",
+      "Vinod Adani initially joined his family business. In 1976, he founded a textile business, VR Textile, in Mumbai. In 1989, he moved to Singapore to trade commodities.\n",
+      "In 1994, Vinod moved to Dubai and established a network of overseas shell companies, as disclosed in the Panama Papers. He founded GA International in the Bahamas in January 1994, listing himself and his wife, Ranjanben Vinod Adani, as directors. In 1996, he changed his name to Vinod Shantilal Shah, a name appearing in various corporate filings related to Adani companies. Later, he assisted Gautam Adani in the diamond trade and the import-export sector, overseeing international shipments from Jebel Ali Port. He also helped raise financing for the development of Mundra Port in India.\n",
+      "In 2010, Vinod took control of Electrogen Infra, and its parent company, Electrogen Infra Holdings.\n",
+      "In 2014, Directorate of Revenue Intelligence of India accused Vinod Adani of involvement in a scheme to inflate the cost of imported power machinery to evade taxes and divert approximately $900 million to a Mauritius-based company linked to him. The investigation was later expanded to include allegations of price inflation in imported coal to increase charges for power supply to Indian electricity distribution companies.\n",
+      "In 2016, Vinod was named in the Panama Papers. \n",
+      "In January 2021, TotalEnergies acquired a 20 percent stake in publicly traded Adani Green Energy not through the open market, but by purchasing two Mauritius-based entities owned by Vinod Adani. In September 2022, the Adani Group's $6.5 billion acquisition of stakes in two Indian cement companies from Swiss firm Holcim was similarly conducted via a Mauritius firm controlled by Vinod and his wife.\n",
+      "A 2023 report by Hindenburg Research criticized Vinod Adani's management of overseas shell companies, alleging financial improprieties aimed at manipulating company finances and securing funding for international projects. The report identified 38 shell entities in Mauritius and additional companies in Cyprus, the United Arab Emirates, Singapore, and several Caribbean islands controlled by Vinod Adani or his associates. These entities were reported to facilitate the movement of funds within the Adani conglomerate without clear operational activities. Further investigation by the Wall Street Journal and Bloomberg revealed a Singapore-based company associated with Vinod Adani, Abbot Point Port Holdings Pte. Ltd., which received over $1.1 billion in loans from Adani Global Investment DMCC, a Dubai-based investment firm managed by him, during the 2021 and 2022 fiscal years. These funds were subsequently lent to Adani Group companies involved in Australian coal, railway, and port businesses.\n",
+      "\n",
+      "\n",
+      "== Wealth ==\n",
+      "As per 2022 Hurun India Rich List, Vinod was named as the richest non-resident Indian, and the sixth-richest Indian overall, with a fortune of ₹169,000 crore (US $20.42 billion). According to Forbes' investigation in 2023, he owns an apartment in Singapore and 37 properties in Dubai, including one in the Burj Khalifa.\n",
+      "\n",
+      "\n",
+      "== References ==' metadata={'title': 'Vinod Adani', 'summary': 'Vinod Shantilal Adani (born 1949), also known as Vinod Shantilal Shah, is an Indian-born Cypriot billionaire businessman who runs a family investment office in Dubai. He is the owner of Excel Investment and Advisory Services.\\nAs of 2025, he has a net worth of $16.4 billion.', 'source': 'https://en.wikipedia.org/wiki/Vinod_Adani'}\n",
+      "===\n"
+     ]
+    }
+   ],
+   "source": [
+    "docs = retriever.invoke(\"Adani Green Energy\")\n",
+    "for doc in docs:\n",
+    "    print(doc)\n",
+    "    print(\"===\")\n",
+    "\n",
+    "# print(docs[2].page_content[:400])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Chain "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 40,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from langchain_core.output_parsers import StrOutputParser\n",
+    "from langchain_core.prompts import ChatPromptTemplate\n",
+    "from langchain_core.runnables import RunnablePassthrough\n",
+    "\n",
+    "prompt = ChatPromptTemplate.from_template(\n",
+    "    \"\"\"\n",
+    "    You are an agent that helps data analysts in a financial institution by risk scoring a transaction \n",
+    "    among entities/corporations. It can also include individuals. Given an input transaction, you need to output \n",
+    "    the risk score (0 to 1) of the transaction, confidence score (0 to 1). Use the context if needed.\n",
+    "    Context: {context}\n",
+    "    Transaction: {transaction}\n",
+    "    \"\"\"\n",
+    ")\n",
+    "\n",
+    "\n",
+    "def format_docs(docs):\n",
+    "    return \"\\n\\n\".join(doc.page_content for doc in docs)\n",
+    "\n",
+    "chain = (\n",
+    "    {\"context\": retriever | format_docs, \"transaction\": RunnablePassthrough()}\n",
+    "    | prompt\n",
+    "    | model\n",
+    "    | StrOutputParser()\n",
+    ")\n",
+    "# chain = (\n",
+    "#     {\"context\": retriever, \"transaction\": RunnablePassthrough()},\n",
+    "#     | prompt\n",
+    "#     | model\n",
+    "#     | StrOutputParser()\n",
+    "# )"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 41,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "\"<think>\\nAlright, so I need to figure out the risk score and confidence score for this transaction. Let's break it down step by step.\\n\\nFirst, looking at the transaction details: it's a wire transfer from Tesla, Inc. to Adani Green Energy Ltd. The amount is $500 million, which is a pretty large sum. The purpose is an investment in renewable energy collaboration. \\n\\nI know that Tesla is a well-known company, especially in the automotive and energy storage sectors. They're based in the U.S., and their reputation is generally positive, though they do have some controversial actions, like their handling of the Cybertruck delays or certain tweets by Elon Musk. But overall, they're a reputable company.\\n\\nOn the other side, Adani Green Energy Ltd. is part of the Adani Group, which is a major player in India, involved in energy, ports, and other infrastructure projects. The Adani Group has had some issues in the past, including allegations of financial irregularities and political controversies, especially with the recent coal block allocation issues. There's also the ongoing investigation into the Adani Group by the U.S. Securities and Exchange Commission, which adds some risk.\\n\\nThe transaction amount is substantial, $500 million. Large transactions can be a red flag because they can be used for money laundering or other illicit activities. However, in this case, the purpose is an investment in renewable energy collaboration, which seems legitimate. Renewable energy projects are often large-scale and require significant investment, so the amount might be justified.\\n\\nThe payment method is a wire transfer, which is a common method for large international transactions. Wire transfers can be risky because they can be difficult to trace once the funds are transferred, making them a potential tool for fraud or money laundering. However, since both parties are established companies, the risk might be lower than if one of the parties were unknown or a newly established business.\\n\\nThe banks involved are JPMorgan Chase Bank in the U.S. and State Bank of India. Both are major, well-regulated banks. JPMorgan is a reputable financial institution with a strong compliance framework. State Bank of India is the largest public sector bank in India and is also well-regulated, though there have been some concerns about money laundering in the past.\\n\\nConsidering the countries involved, the U.S. has strict anti-money laundering regulations, and India is also working on improving its financial regulations. However, India's enforcement can sometimes be inconsistent, which might pose a slight risk.\\n\\nThe purpose is an investment in renewable energy, which is a positive sector. However, the renewable energy sector can sometimes attract fraudulent activities, such as overvaluing projects or using funds for unrelated purposes. Plus, given the political and financial controversies surrounding the Adani Group, there's a risk that this investment could be part of a larger scheme.\\n\\nI should also consider the relationship between the two companies. Are they collaborating on a new project, or is this a routine transaction? If they have a history of working together, the risk might be lower. If this is a new partnership, especially with such a large sum, it could raise eyebrows.\\n\\nAdditionally, the transaction's completion status means it's already been processed. That doesn't necessarily mean it's risky, but it does mean that if there were any issues, they might have already occurred.\\n\\nIn terms of risk factors, I'm thinking about the following points:\\n\\n1. **Transaction Size**: $500 million is a large amount, which increases the risk of it being used for illicit activities.\\n2. **Parties Involved**: Tesla is reputable, but Adani Green Energy Ltd. is part of a group with ongoing legal and financial issues.\\n3. **Payment Method**: Wire transfer can be risky due to traceability issues.\\n4. **Countries Involved**: U.S. and India, both have their own regulatory challenges.\\n5. **Purpose**: While renewable energy is a legitimate sector, it can attract fraud.\\n\\nPutting this all together, the risk score isn't extremely high, but there are several red flags. The confidence in this assessment is moderate because while there are known risks with the Adani Group, the transaction itself seems to have a legitimate purpose, and both banks involved are reputable.\\n\\nI should also consider any recent news or developments. As of my knowledge cutoff in October 2023, the Adani Group was facing significant scrutiny, which would influence the risk assessment. If there were any new developments after that, it could change the risk score, but based on the information available, I'll proceed with that context.\\n\\nSo, in terms of risk score, I think it's moderate. Maybe around 0.4. The confidence score would also be around 0.4 because while there are several factors pointing to potential risks, the transaction itself appears legitimate, and both parties are established entities.\\n</think>\\n\\n**Risk Assessment Summary:**\\n\\n- **Risk Score:** 0.4  \\n  The transaction presents moderate risk due to the involvement of Adani Green Energy Ltd., which is part of a group facing scrutiny, and the large transaction size. However, both companies are established, and the purpose seems legitimate.\\n\\n- **Confidence Score:** 0.4  \\n  The confidence in this assessment is moderate. While there are known risks associated with the Adani Group, the transaction itself appears legitimate, and the banks involved are reputable.\\n\\n**Conclusion:**  \\nThe transaction carries moderate risk, primarily due to the Adani Group's current legal challenges, but the established nature of the companies and the legitimate purpose of the transaction contribute to a moderate confidence score.\""
+      ]
+     },
+     "execution_count": 41,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# transaction_test = input()\n",
+    "chain.invoke(\n",
+    "    \"Transaction ID: TXN20250322113045, Date: 2025-03-22T11:30:45Z,  Payer: Tesla, Inc.  Payer Account Number: TESLA987654321,  Payer Bank: JPMorgan Chase Bank, USA, Payee: Adani Green Energy Ltd.  ,Payee Account Number: ADANIGREEN123456  ,Payee Bank: State Bank of India, India  ,Amount: 500,000,000 USD  ,Payment Method: Wire Transfer  ,Purpose: Investment in Renewable Energy Collaboration  ,Status: Completed  \"\n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from langchain_neo4j import Neo4jGraph\n",
+    "\n",
+    "graph = Neo4jGraph()\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Node properties:\n",
+      "Entity {countries: STRING, ibcRUC: STRING, valid_until: STRING, country_codes: STRING, service_provider: STRING, address: STRING, inactivation_date: STRING, struck_off_date: STRING, status: STRING, jurisdiction_description: STRING, incorporation_date: STRING, original_name: STRING, jurisdiction: STRING, name: STRING, internal_id: STRING, lastEditTimestamp: STRING, node_id: INTEGER, sourceID: STRING, former_name: STRING, company_type: STRING, tax_stat_description: STRING, note: STRING, dorm_date: STRING, type: STRING, closed_date: STRING, company_number: STRING, comments: STRING, entity_number: STRING}\n",
+      "Intermediary {countries: STRING, lastEditTimestamp: STRING, address: STRING, valid_until: STRING, country_codes: STRING, name: STRING, status: STRING, node_id: INTEGER, sourceID: STRING, internal_id: STRING, note: STRING, registered_office: STRING}\n",
+      "Officer {valid_until: STRING, sourceID: STRING, name: STRING, icij_id: STRING, node_id: INTEGER, lastEditTimestamp: STRING, country_codes: STRING, countries: STRING, note: STRING}\n",
+      "Address {original_address: STRING, lastEditTimestamp: STRING, countries: STRING, address: STRING, valid_until: STRING, icij_id: STRING, node_id: INTEGER, sourceID: STRING, country_codes: STRING, name: STRING, note: STRING, addressID: STRING, country_code: STRING, country: STRING}\n",
+      "Other {incorporation_date: STRING, valid_until: STRING, name: STRING, jurisdiction: STRING, closed_date: STRING, jurisdiction_description: STRING, node_id: INTEGER, sourceID: STRING, lastEditTimestamp: STRING, type: STRING, note: STRING, struck_off_date: STRING, countries: STRING, country_codes: STRING}\n",
+      "Relationship properties:\n",
+      "registered_address {link: STRING, sourceID: STRING, valid_until: STRING, lastEditTimestamp: STRING}\n",
+      "intermediary_of {valid_until: STRING, sourceID: STRING, link: STRING, end_date: STRING, start_date: STRING}\n",
+      "officer_of {link: STRING, valid_until: STRING, sourceID: STRING, start_date: STRING, end_date: STRING, status: STRING, lastEditTimestamp: STRING}\n",
+      "underlying {lastEditTimestamp: STRING, link: STRING}\n",
+      "similar {link: STRING}\n",
+      "same_as {link: STRING}\n",
+      "same_name_as {sourceID: STRING, link: STRING, valid_until: STRING, lastEditTimestamp: STRING}\n",
+      "same_company_as {valid_until: STRING, sourceID: STRING, link: STRING}\n",
+      "same_id_as {sourceID: STRING, link: STRING, valid_until: STRING}\n",
+      "connected_to {sourceID: STRING, link: STRING, valid_until: STRING}\n",
+      "The relationships:\n",
+      "(:Entity)-[:registered_address]->(:Address)\n",
+      "(:Entity)-[:same_as]->(:Entity)\n",
+      "(:Entity)-[:same_company_as]->(:Entity)\n",
+      "(:Entity)-[:same_name_as]->(:Entity)\n",
+      "(:Intermediary)-[:intermediary_of]->(:Entity)\n",
+      "(:Intermediary)-[:similar]->(:Officer)\n",
+      "(:Intermediary)-[:similar]->(:Intermediary)\n",
+      "(:Intermediary)-[:registered_address]->(:Address)\n",
+      "(:Intermediary)-[:officer_of]->(:Entity)\n",
+      "(:Intermediary)-[:same_name_as]->(:Intermediary)\n",
+      "(:Intermediary)-[:same_name_as]->(:Entity)\n",
+      "(:Intermediary)-[:same_name_as]->(:Officer)\n",
+      "(:Intermediary)-[:connected_to]->(:Entity)\n",
+      "(:Intermediary)-[:same_as]->(:Officer)\n",
+      "(:Officer)-[:officer_of]->(:Entity)\n",
+      "(:Officer)-[:officer_of]->(:Other)\n",
+      "(:Officer)-[:registered_address]->(:Address)\n",
+      "(:Officer)-[:similar]->(:Officer)\n",
+      "(:Officer)-[:connected_to]->(:Entity)\n",
+      "(:Officer)-[:same_name_as]->(:Officer)\n",
+      "(:Officer)-[:same_id_as]->(:Officer)\n",
+      "(:Address)-[:same_as]->(:Address)\n",
+      "(:Other)-[:registered_address]->(:Address)\n",
+      "(:Other)-[:connected_to]->(:Entity)\n",
+      "(:Other)-[:same_name_as]->(:Entity)\n",
+      "(:Other)-[:same_name_as]->(:Officer)\n",
+      "(:Other)-[:same_name_as]->(:Other)\n",
+      "(:Other)-[:underlying]->(:Entity)\n"
+     ]
+    }
+   ],
+   "source": [
+    "graph.refresh_schema()\n",
+    "print(graph.schema)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Node properties:\n",
+      "- **Entity**\n",
+      "  - `countries`: STRING Example: \"Hong Kong\"\n",
+      "  - `ibcRUC`: STRING Example: \"25221\"\n",
+      "  - `valid_until`: STRING Example: \"The Panama Papers data is current through 2015\"\n",
+      "  - `country_codes`: STRING Example: \"HKG\"\n",
+      "  - `service_provider`: STRING Available options: ['Appleby', 'Portcullis Trustnet', 'Mossack Fonseca', 'Commonwealth Trust Limited']\n",
+      "  - `address`: STRING Example: \"ORION HOUSE SERVICES (HK) LIMITED ROOM 1401; 14/F.\"\n",
+      "  - `inactivation_date`: STRING Example: \"18-FEB-2013\"\n",
+      "  - `struck_off_date`: STRING Example: \"15-FEB-2013\"\n",
+      "  - `status`: STRING Example: \"Defaulted\"\n",
+      "  - `jurisdiction_description`: STRING Example: \"Samoa\"\n",
+      "  - `incorporation_date`: STRING Example: \"23-MAR-2006\"\n",
+      "  - `original_name`: STRING Example: \"TIANSHENG INDUSTRY AND TRADING CO., LTD.\"\n",
+      "  - `jurisdiction`: STRING Example: \"SAM\"\n",
+      "  - `name`: STRING Example: \"TIANSHENG INDUSTRY AND TRADING CO., LTD.\"\n",
+      "  - `internal_id`: STRING Example: \"1001256\"\n",
+      "  - `lastEditTimestamp`: STRING Example: \"1638311020926\"\n",
+      "  - `node_id`: INTEGER Min: 10000001, Max: 10000005\n",
+      "  - `sourceID`: STRING Example: \"Panama Papers\"\n",
+      "  - `former_name`: STRING \n",
+      "  - `company_type`: STRING \n",
+      "  - `tax_stat_description`: STRING \n",
+      "  - `note`: STRING \n",
+      "  - `dorm_date`: STRING \n",
+      "  - `closed_date`: STRING \n",
+      "  - `type`: STRING \n",
+      "  - `company_number`: STRING \n",
+      "  - `comments`: STRING \n",
+      "  - `entity_number`: STRING \n",
+      "- **Intermediary**\n",
+      "  - `lastEditTimestamp`: STRING Example: \"1638311034131\"\n",
+      "  - `valid_until`: STRING Example: \"The Panama Papers  data is current through 2015\"\n",
+      "  - `country_codes`: STRING Example: \"ZAF\"\n",
+      "  - `countries`: STRING Example: \"South Africa\"\n",
+      "  - `name`: STRING Example: \"MICHAEL PAPAGEORGE, MR.\"\n",
+      "  - `status`: STRING Available options: ['UNRECOVERABLE ACCOUNTS', 'CLIENT IN REPRESENTATIVE TERRITORY', 'ACTIVE', 'INACTIVE', 'SUSPENDED', 'DELINQUENT', 'PROSPECT', 'SUSPENDED LEGAL', 'ACTIVE LEGAL']\n",
+      "  - `address`: STRING Example: \"MICHAEL PAPAGEORGE; MR. 106 NICHOLSON STREET BROOK\"\n",
+      "  - `node_id`: INTEGER Min: 11000001, Max: 11000005\n",
+      "  - `sourceID`: STRING Available options: ['Pandora Papers - Alemán, Cordero, Galindo & Lee (Alcogal)', 'Paradise Papers - Appleby', 'Paradise Papers - Barbados corporate registry', 'Bahamas Leaks', 'Panama Papers', 'Paradise Papers - Nevis corporate registry', 'Paradise Papers - Bahamas corporate registry', 'Offshore Leaks', 'Paradise Papers - Aruba corporate registry']\n",
+      "  - `internal_id`: STRING Example: \"10001\"\n",
+      "  - `registered_office`: STRING \n",
+      "- **Officer**\n",
+      "  - `valid_until`: STRING Example: \"The Panama Papers data is current through 2015\"\n",
+      "  - `sourceID`: STRING Example: \"Panama Papers\"\n",
+      "  - `name`: STRING Example: \"KIM SOO IN\"\n",
+      "  - `icij_id`: STRING Example: \"E72326DEA50F1A9C2876E112AAEB42BC\"\n",
+      "  - `node_id`: INTEGER Min: 12000001, Max: 12000005\n",
+      "  - `lastEditTimestamp`: STRING Example: \"1638311034062\"\n",
+      "  - `country_codes`: STRING Example: \"KOR\"\n",
+      "  - `countries`: STRING Example: \"South Korea\"\n",
+      "  - `note`: STRING \n",
+      "- **Address**\n",
+      "  - `original_address`: STRING Example: \"ANNEX FREDERICK & SHIRLEY STS, P. O. BOX N-4805 NA\"\n",
+      "  - `lastEditTimestamp`: STRING Example: \"1638311020926\"\n",
+      "  - `countries`: STRING Example: \"Bahamas\"\n",
+      "  - `address`: STRING Example: \"ANNEX FREDERICK & SHIRLEY STS, P.O. BOX N-4805, NA\"\n",
+      "  - `valid_until`: STRING Example: \"The Bahamas Leaks data is current through early 20\"\n",
+      "  - `icij_id`: STRING Example: \"7C1AAD6896EFDED57D680B82E7ADF7AB\"\n",
+      "  - `node_id`: INTEGER Min: 24000001, Max: 24000005\n",
+      "  - `sourceID`: STRING Example: \"Bahamas Leaks\"\n",
+      "  - `country_codes`: STRING Example: \"BHS\"\n",
+      "  - `name`: STRING \n",
+      "  - `addressID`: STRING \n",
+      "  - `country_code`: STRING \n",
+      "  - `country`: STRING \n",
+      "- **Other**\n",
+      "  - `incorporation_date`: STRING Example: \"18-MAY-1983\"\n",
+      "  - `valid_until`: STRING Available options: ['Aruba corporate registry data is current through 2', 'Appleby data is current through 2014', 'Provider data is current through 2017', 'Provider data is current through 2016', 'Provider data is current through 2008', 'Provider data is current through 2013', 'Provider data is current through 2019', 'Provider data is current through 2018', 'Provider data is current through 2015', 'Provider data is current through 2012']\n",
+      "  - `name`: STRING Example: \"ANTAM ENTERPRISES N.V.\"\n",
+      "  - `jurisdiction`: STRING Available options: ['AW', 'VGB', 'PAN', 'BLZ', 'USA', 'KNA']\n",
+      "  - `closed_date`: STRING Example: \"28-NOV-2012\"\n",
+      "  - `jurisdiction_description`: STRING Available options: ['Aruba', 'British Virgin Islands', 'Panama', 'Belize', 'South Dakota', 'Nevis']\n",
+      "  - `node_id`: INTEGER Min: 80000012, Max: 240558070\n",
+      "  - `sourceID`: STRING Available options: ['Paradise Papers - Aruba corporate registry', 'Paradise Papers - Appleby', 'Pandora Papers - Trident Trust', 'Pandora Papers - Alemán, Cordero, Galindo & Lee (A', 'Pandora Papers - Overseas Management Company (OMC)', 'Pandora Papers - Fidelity Corporate Services', 'Pandora Papers - CILTrust International']\n",
+      "  - `lastEditTimestamp`: STRING Available options: ['1638311068329', '1638311074502', '1638311074946', '1638311075268', '1638311075503', '1651575199169']\n",
+      "  - `type`: STRING Available options: ['LIMITED LIABILITY COMPANY', 'SOLE OWNERSHIP', 'FOREIGN FORMED CORPORATION']\n",
+      "  - `note`: STRING Available options: ['Closed date stands for Cancelled date.', 'Closed date stands for Liquidation date.']\n",
+      "  - `struck_off_date`: STRING Example: \"31-DEC-2002\"\n",
+      "  - `countries`: STRING Example: \"Bermuda;Isle of Man\"\n",
+      "  - `country_codes`: STRING Example: \"BMU;IMN\"\n",
+      "Relationship properties:\n",
+      "- **registered_address**\n",
+      "  - `link`: STRING Example: \"registered address\"\n",
+      "  - `sourceID`: STRING Example: \"Panama Papers\"\n",
+      "  - `valid_until`: STRING \n",
+      "  - `lastEditTimestamp`: STRING \n",
+      "- **intermediary_of**\n",
+      "  - `valid_until`: STRING Example: \"The Panama Papers data is current through 2015\"\n",
+      "  - `sourceID`: STRING Example: \"Panama Papers\"\n",
+      "  - `link`: STRING Example: \"intermediary of\"\n",
+      "  - `end_date`: STRING \n",
+      "  - `start_date`: STRING \n",
+      "- **officer_of**\n",
+      "  - `link`: STRING Example: \"shareholder of\"\n",
+      "  - `valid_until`: STRING Example: \"The Panama Papers data is current through 2015\"\n",
+      "  - `sourceID`: STRING Example: \"Panama Papers\"\n",
+      "  - `start_date`: STRING Example: \"17-NOV-2005\"\n",
+      "  - `end_date`: STRING Example: \"\"\n",
+      "  - `status`: STRING \n",
+      "  - `lastEditTimestamp`: STRING \n",
+      "- **underlying**\n",
+      "  - `link`: STRING \n",
+      "  - `valid_until`: STRING \n",
+      "  - `sourceID`: STRING \n",
+      "  - `lastEditTimestamp`: STRING \n",
+      "- **similar**\n",
+      "  - `link`: STRING Example: \"similar name and address as\"\n",
+      "- **same_as**\n",
+      "  - `link`: STRING Available options: ['same name and registration date as', 'same address as', 'same as']\n",
+      "- **same_name_as**\n",
+      "  - `sourceID`: STRING \n",
+      "  - `link`: STRING Example: \"same name as\"\n",
+      "  - `valid_until`: STRING \n",
+      "  - `lastEditTimestamp`: STRING \n",
+      "- **same_company_as**\n",
+      "  - `valid_until`: STRING Example: \"The Bahamas Leaks data is current through early 20\"\n",
+      "  - `sourceID`: STRING Example: \"Bahamas Leaks\"\n",
+      "  - `link`: STRING Example: \"same company as\"\n",
+      "- **same_id_as**\n",
+      "  - `sourceID`: STRING Available options: ['Paradise Papers - Malta corporate registry']\n",
+      "  - `link`: STRING Available options: ['same id as']\n",
+      "  - `valid_until`: STRING Available options: ['Malta corporate registry data is current through 2']\n",
+      "- **connected_to**\n",
+      "  - `valid_until`: STRING Example: \"Appleby data is current through 2014\"\n",
+      "  - `link`: STRING Example: \"connected to\"\n",
+      "  - `sourceID`: STRING Example: \"Paradise Papers - Appleby\"\n",
+      "The relationships:\n",
+      "(:Entity)-[:same_company_as]->(:Entity)\n",
+      "(:Entity)-[:registered_address]->(:Address)\n",
+      "(:Entity)-[:registered_address]->(:Entity)\n",
+      "(:Entity)-[:same_as]->(:Entity)\n",
+      "(:Entity)-[:similar_company_as]->(:Entity)\n",
+      "(:Entity)-[:same_name_as]->(:Entity)\n",
+      "(:Intermediary)-[:intermediary_of]->(:Entity)\n",
+      "(:Intermediary)-[:similar]->(:Officer)\n",
+      "(:Intermediary)-[:similar]->(:Intermediary)\n",
+      "(:Intermediary)-[:registered_address]->(:Address)\n",
+      "(:Intermediary)-[:officer_of]->(:Entity)\n",
+      "(:Intermediary)-[:same_name_as]->(:Intermediary)\n",
+      "(:Intermediary)-[:same_name_as]->(:Entity)\n",
+      "(:Intermediary)-[:same_name_as]->(:Officer)\n",
+      "(:Intermediary)-[:connected_to]->(:Entity)\n",
+      "(:Intermediary)-[:same_as]->(:Officer)\n",
+      "(:Officer)-[:officer_of]->(:Entity)\n",
+      "(:Officer)-[:officer_of]->(:Other)\n",
+      "(:Officer)-[:registered_address]->(:Address)\n",
+      "(:Officer)-[:similar]->(:Officer)\n",
+      "(:Officer)-[:intermediary_of]->(:Entity)\n",
+      "(:Officer)-[:same_name_as]->(:Officer)\n",
+      "(:Officer)-[:same_id_as]->(:Officer)\n",
+      "(:Address)-[:same_as]->(:Address)\n",
+      "(:Other)-[:registered_address]->(:Address)\n",
+      "(:Other)-[:connected_to]->(:Entity)\n",
+      "(:Other)-[:same_name_as]->(:Entity)\n",
+      "(:Other)-[:same_name_as]->(:Officer)\n",
+      "(:Other)-[:same_name_as]->(:Other)\n",
+      "(:Other)-[:underlying]->(:Entity)\n"
+     ]
+    }
+   ],
+   "source": [
+    "enhanced_graph = Neo4jGraph(enhanced_schema=True)\n",
+    "print(enhanced_graph.schema)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 36,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "\n",
+      "\u001b[1m> Entering new GraphCypherQAChain chain...\u001b[0m\n",
+      "Generated Cypher:\n",
+      "\u001b[32;1m\u001b[1;3mMATCH (o:Officer)-[:officer_of]->(e:Entity {countries: \"France\"})\n",
+      "RETURN o.name\u001b[0m\n",
+      "Full Context:\n",
+      "\u001b[32;1m\u001b[1;3m[{'o.name': 'Emilie Makaci'}, {'o.name': 'Michael Makaci'}, {'o.name': 'THE BEARER'}, {'o.name': 'THE BEARER'}, {'o.name': 'MRS. KITTY GABLE'}, {'o.name': 'Kitty Jeanne Gable'}, {'o.name': 'Mr. Dragan Milosavljevi'}, {'o.name': 'THE BEARER'}, {'o.name': 'THE BEARER'}, {'o.name': 'THE BEARER'}]\u001b[0m\n",
+      "\n",
+      "\u001b[1m> Finished chain.\u001b[0m\n",
+      "{'query': 'Name the officers that are linked with French entities', 'result': 'Emilie Makaci, Michael Makaci, MRS. KITTY GABLE, and Kitty Jeanne Gable are the officers linked with French entities.'}\n"
+     ]
+    }
+   ],
+   "source": [
+    "## Note: Sometimes this may return an error. It depends on the how well the llm is able to generate the cypher query. \n",
+    "## Few-shot prompting is one way to improve the performance of the llm.\n",
+    "from langchain_neo4j import GraphCypherQAChain\n",
+    "\n",
+    "chain = GraphCypherQAChain.from_llm(\n",
+    "    graph=enhanced_graph, llm=model, verbose=True, allow_dangerous_requests=True, validate_cypher=True\n",
+    ")\n",
+    "response = chain.invoke({\"query\": \"Name the officers that are linked with French entities\"})\n",
+    "print(response) # response becomes context \n",
+    "\n",
+    "\n",
+    "## Input: Transaction -> Process the input to extract entities and generate a prompt to generate a query -> Query the graph database to get the required information and store it -> Pass this along with Wikipedia retriever to generate the risk_score and confidence score \n",
+    "## Should we use separate chains? Is it possible to use one chain to do all of this?\n",
+    "\n",
+    "## Output: Risk Score, Confidence Score, Reason for the risk score\n",
+    "\n",
+    "## catching error, timeout "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "lcai",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.6"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
