@@ -1,0 +1,17 @@
+{
+  "Transaction ID": "TXN001",
+  "Extracted Entity": "Acme Corporation",
+  "Entity Type": "Corporation",
+  "Risk Score": 0.72,
+  "Supporting Evidence": ["OpenCorporateAPI", "Wikidata"],
+  "Confidence Score": 0.91,
+  "Reason": "Acme Corporation has been linked to multiple high-risk transactions. Although it is legally registered, its ownership structure raises concerns.",
+  "Generative AI Analysis": {
+    "Risk Factors": [
+      "Entity has multiple shell companies registered under its name",
+      "Previous involvement in regulatory scrutiny",
+      "Unusual financial transactions detected"
+    ],
+    "Justification": "Based on data from OpenCorporateAPI and Wikidata, Acme Corporation appears to have complex ownership structures and potential risk exposure."
+  }
+}
